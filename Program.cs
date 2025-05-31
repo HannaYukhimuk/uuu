@@ -41,18 +41,20 @@ builder.Services.AddTransient<IEmailSender, MailKitEmailSender>();
 
 
 var app = builder.Build();
+
+// Добавляем автоматическое применение миграций
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var dbContext = services.GetRequiredService<ApplicationDbContext>();
-        dbContext.Database.EnsureCreated(); // Создает базу, если ее нет
+        dbContext.Database.Migrate(); // Применяет все pending миграции
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while creating the database");
+        logger.LogError(ex, "An error occurred while applying migrations");
     }
 }
 
