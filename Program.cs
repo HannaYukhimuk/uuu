@@ -4,18 +4,22 @@ using UserManagementApp.Data;
 using UserManagementApp.Models;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using UserManagementApp.Services;
-
 using UserManagementApp.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Получаем строку подключения из конфигурации
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Настраиваем DbContext с политикой повторных попыток
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, 
+        sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null)));
     
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-
-
 
 builder.Services.AddIdentity<User, IdentityRole>(options =>
 {
@@ -30,7 +34,6 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 .AddDefaultUI()
 .AddDefaultTokenProviders();
 
-
 builder.Services.AddControllersWithViews();
 
 builder.Services.Configure<EmailSettings>(
@@ -38,44 +41,46 @@ builder.Services.Configure<EmailSettings>(
 
 builder.Services.AddTransient<IEmailSender, MailKitEmailSender>();
 
-
-
 var app = builder.Build();
 
-// Добавляем автоматическое применение миграций
+// Добавляем автоматическое применение миграций с улучшенной обработкой ошибок
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
-    var maxRetries = 5;
-    var retryDelay = TimeSpan.FromSeconds(5);
+    var maxRetries = 10; // Увеличиваем количество попыток
+    var retryDelay = TimeSpan.FromSeconds(10); // Увеличиваем задержку между попытками
     
     for (int i = 0; i < maxRetries; i++)
     {
         try
         {
-            logger.LogInformation("Попытка применить миграции (Попытка {0}/{1})", i + 1, maxRetries);
+            logger.LogInformation("Attempting to apply migrations (Attempt {0}/{1})", i + 1, maxRetries);
             var dbContext = services.GetRequiredService<ApplicationDbContext>();
             
-            // Дополнительная проверка перед миграцией
-            if (!dbContext.Database.CanConnect())
+            // Проверяем подключение к базе данных
+            if (dbContext.Database.CanConnect())
             {
-                throw new Exception("Нет подключения к базе данных");
+                logger.LogInformation("Database connection established, applying migrations...");
+                dbContext.Database.Migrate();
+                logger.LogInformation("Migrations applied successfully");
+                break;
             }
-            
-            dbContext.Database.Migrate();
-            logger.LogInformation("Миграции успешно применены");
-            break;
+            else
+            {
+                logger.LogWarning("Cannot connect to database, retrying...");
+                throw new Exception("Database connection failed");
+            }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Попытка миграции {0} не удалась", i + 1);
+            logger.LogError(ex, "Migration attempt {0} failed", i + 1);
             if (i == maxRetries - 1)
             {
-                logger.LogError("Все попытки миграции провалились");
+                logger.LogError("All migration attempts failed");
                 throw;
             }
-            Thread.Sleep(retryDelay);
+            await Task.Delay(retryDelay); // Используем асинхронное ожидание
         }
     }
 }
