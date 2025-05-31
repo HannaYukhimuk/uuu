@@ -10,10 +10,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 
-// Настройка PostgreSQL
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Получаем строку подключения
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+// Регистрируем DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
+
+// Остальной код...
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
