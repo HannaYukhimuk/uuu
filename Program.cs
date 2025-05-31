@@ -41,7 +41,20 @@ builder.Services.AddTransient<IEmailSender, MailKitEmailSender>();
 
 
 var app = builder.Build();
-
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var dbContext = services.GetRequiredService<ApplicationDbContext>();
+        dbContext.Database.EnsureCreated(); // Создает базу, если ее нет
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while creating the database");
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {
