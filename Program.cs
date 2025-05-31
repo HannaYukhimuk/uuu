@@ -39,11 +39,7 @@ builder.Services.AddTransient<IEmailSender, MailKitEmailSender>();
 var app = builder.Build();
 
 // 👇 Применение миграций при запуске (аккуратно в проде)
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    db.Database.Migrate();
-}
+
 
 // Middleware
 if (app.Environment.IsDevelopment())
