@@ -5,12 +5,14 @@ using UserManagementApp.Models;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using UserManagementApp.Services;
 using UserManagementApp.Configuration;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Получаем строку подключения из конфигурации
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
