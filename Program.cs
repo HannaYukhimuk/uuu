@@ -15,7 +15,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString, 
         sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
-            maxRetryCount: 5,
+            maxRetryCount: 10,
             maxRetryDelay: TimeSpan.FromSeconds(30),
             errorNumbersToAdd: null)));
     
@@ -43,46 +43,16 @@ builder.Services.AddTransient<IEmailSender, MailKitEmailSender>();
 
 var app = builder.Build();
 
-// Добавляем автоматическое применение миграций с улучшенной обработкой ошибок
-using (var scope = app.Services.CreateScope())
+// Асинхронное применение миграций
+try
 {
-    var services = scope.ServiceProvider;
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    var maxRetries = 10; // Увеличиваем количество попыток
-    var retryDelay = TimeSpan.FromSeconds(10); // Увеличиваем задержку между попытками
-    
-    for (int i = 0; i < maxRetries; i++)
-    {
-        try
-        {
-            logger.LogInformation("Attempting to apply migrations (Attempt {0}/{1})", i + 1, maxRetries);
-            var dbContext = services.GetRequiredService<ApplicationDbContext>();
-            
-            // Проверяем подключение к базе данных
-            if (dbContext.Database.CanConnect())
-            {
-                logger.LogInformation("Database connection established, applying migrations...");
-                dbContext.Database.Migrate();
-                logger.LogInformation("Migrations applied successfully");
-                break;
-            }
-            else
-            {
-                logger.LogWarning("Cannot connect to database, retrying...");
-                throw new Exception("Database connection failed");
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Migration attempt {0} failed", i + 1);
-            if (i == maxRetries - 1)
-            {
-                logger.LogError("All migration attempts failed");
-                throw;
-            }
-            await Task.Delay(retryDelay); // Используем асинхронное ожидание
-        }
-    }
+    await ApplyMigrationsAsync(app.Services);
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "An error occurred while applying migrations");
+    throw;
 }
 
 if (app.Environment.IsDevelopment())
@@ -110,3 +80,44 @@ app.MapControllerRoute(
 app.MapRazorPages(); 
 
 app.Run();
+
+async Task ApplyMigrationsAsync(IServiceProvider serviceProvider)
+{
+    using var scope = serviceProvider.CreateScope();
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var maxRetries = 15; // Увеличиваем количество попыток
+    var retryDelay = TimeSpan.FromSeconds(15); // Увеличиваем задержку
+    
+    for (int i = 0; i < maxRetries; i++)
+    {
+        try
+        {
+            logger.LogInformation("Attempting to connect to database (Attempt {Attempt}/{MaxAttempts})", i + 1, maxRetries);
+            
+            var dbContext = services.GetRequiredService<ApplicationDbContext>();
+            
+            // Проверяем подключение к базе данных
+            if (await dbContext.Database.CanConnectAsync())
+            {
+                logger.LogInformation("Database connection established, applying migrations...");
+                await dbContext.Database.MigrateAsync();
+                logger.LogInformation("Migrations applied successfully");
+                return;
+            }
+            
+            logger.LogWarning("Cannot connect to database, retrying...");
+            throw new Exception("Database connection failed");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Database connection attempt {Attempt} failed", i + 1);
+            if (i == maxRetries - 1)
+            {
+                logger.LogError("All connection attempts failed");
+                throw;
+            }
+            await Task.Delay(retryDelay);
+        }
+    }
+}

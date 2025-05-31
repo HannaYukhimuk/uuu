@@ -12,27 +12,30 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=UserManagementDb;User=sa;Password=Your_password123;TrustServerCertificate=True;
-    restart: unless-stopped
-    command: >
-      sh -c "dotnet UserManagementApp.dll checkdb &&
-      dotnet ef database update &&
-      dotnet UserManagementApp.dll"
+      - ASPNETCORE_URLS=http://+:80
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: sqlserver
     environment:
       SA_PASSWORD: "Your_password123"
       ACCEPT_EULA: "Y"
+      MSSQL_AGENT_ENABLED: "true"
     ports:
       - "1433:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
     healthcheck:
       test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -U sa -P Your_password123 -Q \"SELECT 1\" || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
 
 volumes:
   sqlserver_data:
