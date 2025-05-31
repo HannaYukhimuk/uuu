@@ -9,16 +9,12 @@ using UserManagementApp.Configuration;
 var builder = WebApplication.CreateBuilder(args);
 
 // Получаем строку подключения из конфигурации
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
-// Настраиваем DbContext с политикой повторных попыток
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString, 
-        sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
-            maxRetryCount: 10,
-            maxRetryDelay: TimeSpan.FromSeconds(30),
-            errorNumbersToAdd: null)));
-    
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+
+
+
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentity<User, IdentityRole>(options =>
