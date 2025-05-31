@@ -1,24 +1,25 @@
-# -------- Сборка проекта --------
+# Используем образ SDK для сборки
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-WORKDIR /src
+WORKDIR /app
 
-# Копируем проектные файлы и восстанавливаем зависимости
+# Копируем csproj и восстанавливаем зависимости
 COPY *.csproj ./
 RUN dotnet restore
 
-# Копируем остальное и публикуем
+# Копируем остальной код и собираем
 COPY . ./
-RUN dotnet publish -c Release -o /app/out
+RUN dotnet publish -c Release -o out
 
-# -------- Runtime-слой --------
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+# Используем runtime-образ для запуска
+FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
+COPY --from=build /app/out .
 
-COPY --from=build /app/out ./
+# Открываем порт
+EXPOSE 80
 
-# Указываем порт, который откроет Render
-ENV ASPNETCORE_URLS=http://+:10000
-EXPOSE 10000
+# Устанавливаем переменные окружения (если нужно)
+ENV ASPNETCORE_URLS=http://+:80
 
-# Точка входа
+# Запуск
 ENTRYPOINT ["dotnet", "UserManagementApp.dll"]

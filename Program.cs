@@ -9,11 +9,9 @@ using UserManagementApp.Configuration;
 var builder = WebApplication.CreateBuilder(args);
 
 // Чтение строки подключения из переменной окружения или конфигурации
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
-// Настройка контекста БД с PostgreSQL
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString)); // ← PostgreSQL через Npgsql
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
