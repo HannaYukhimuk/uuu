@@ -1,35 +1,33 @@
-version: '3.9'
-services:
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: sqlserver
-    environment:
-      - ACCEPT_EULA=Y
-      - SA_PASSWORD=YourStrong@Passw0rd
-    ports:
-      - "1433:1433"
-    networks:
-      - appnet
-    healthcheck:
-      test: ["CMD", "sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourStrong@Passw0rd", "-Q", "SELECT 1"]
-      interval: 10s
-      retries: 10
-      start_period: 10s
+version: '3.8'
 
-  webapp:
-    build:
-      context: .
-    container_name: webapp
+services:
+  db:
+    image: postgres:16
     environment:
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=MyAppDb;User Id=sa;Password=YourStrong@Passw0rd;
-    depends_on:
-      sqlserver:
-        condition: service_healthy
-    networks:
-      - appnet
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     ports:
-      - "8080:80"
+      - "5432:5432"
+    networks:
+      - mynetwork
+
+  web:
+    build: .
+    depends_on:
+      - db
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=mydb;Username=postgres;Password=postgres
+    ports:
+      - "5000:80"
+    networks:
+      - mynetwork
+
+volumes:
+  pgdata:
 
 networks:
-  appnet:
-    driver: bridge
+  mynetwork:

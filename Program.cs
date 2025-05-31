@@ -12,9 +12,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-
-
-
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentity<User, IdentityRole>(options =>
@@ -39,17 +36,8 @@ builder.Services.AddTransient<IEmailSender, MailKitEmailSender>();
 
 var app = builder.Build();
 
-// Асинхронное применение миграций
-try
-{
-    await ApplyMigrationsAsync(app.Services);
-}
-catch (Exception ex)
-{
-    var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogError(ex, "An error occurred while applying migrations");
-    throw;
-}
+// 👇 Применяем миграции перед запуском приложения
+await ApplyMigrationsAsync(app.Services);
 
 if (app.Environment.IsDevelopment())
 {
@@ -73,27 +61,31 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=User}/{action=Index}/{id?}");
 
-app.MapRazorPages(); 
+app.MapRazorPages();
 
 app.Run();
+
+
+// ==============================
+// 👇 Метод применения миграций
+// ==============================
 
 async Task ApplyMigrationsAsync(IServiceProvider serviceProvider)
 {
     using var scope = serviceProvider.CreateScope();
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
-    var maxRetries = 15; // Увеличиваем количество попыток
-    var retryDelay = TimeSpan.FromSeconds(15); // Увеличиваем задержку
-    
+    var maxRetries = 15;
+    var retryDelay = TimeSpan.FromSeconds(15);
+
     for (int i = 0; i < maxRetries; i++)
     {
         try
         {
             logger.LogInformation("Attempting to connect to database (Attempt {Attempt}/{MaxAttempts})", i + 1, maxRetries);
-            
+
             var dbContext = services.GetRequiredService<ApplicationDbContext>();
-            
-            // Проверяем подключение к базе данных
+
             if (await dbContext.Database.CanConnectAsync())
             {
                 logger.LogInformation("Database connection established, applying migrations...");
@@ -101,7 +93,7 @@ async Task ApplyMigrationsAsync(IServiceProvider serviceProvider)
                 logger.LogInformation("Migrations applied successfully");
                 return;
             }
-            
+
             logger.LogWarning("Cannot connect to database, retrying...");
             throw new Exception("Database connection failed");
         }
