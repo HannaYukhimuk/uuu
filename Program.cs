@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Получаем строку подключения из конфигурации
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -39,7 +39,7 @@ builder.Services.AddTransient<IEmailSender, MailKitEmailSender>();
 var app = builder.Build();
 
 // 👇 Применяем миграции перед запуском приложения
-await ApplyMigrationsAsync(app.Services);
+
 
 if (app.Environment.IsDevelopment())
 {
@@ -55,6 +55,7 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
+app.MapDefaultControllerRoute();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -67,47 +68,3 @@ app.MapRazorPages();
 
 app.Run();
 
-
-// ==============================
-// 👇 Метод применения миграций
-// ==============================
-
-async Task ApplyMigrationsAsync(IServiceProvider serviceProvider)
-{
-    using var scope = serviceProvider.CreateScope();
-    var services = scope.ServiceProvider;
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    var maxRetries = 15;
-    var retryDelay = TimeSpan.FromSeconds(15);
-
-    for (int i = 0; i < maxRetries; i++)
-    {
-        try
-        {
-            logger.LogInformation("Attempting to connect to database (Attempt {Attempt}/{MaxAttempts})", i + 1, maxRetries);
-
-            var dbContext = services.GetRequiredService<ApplicationDbContext>();
-
-            if (await dbContext.Database.CanConnectAsync())
-            {
-                logger.LogInformation("Database connection established, applying migrations...");
-                await dbContext.Database.MigrateAsync();
-                logger.LogInformation("Migrations applied successfully");
-                return;
-            }
-
-            logger.LogWarning("Cannot connect to database, retrying...");
-            throw new Exception("Database connection failed");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Database connection attempt {Attempt} failed", i + 1);
-            if (i == maxRetries - 1)
-            {
-                logger.LogError("All connection attempts failed");
-                throw;
-            }
-            await Task.Delay(retryDelay);
-        }
-    }
-}
