@@ -1,25 +1,28 @@
-# Используем образ SDK для сборки
+# Используем официальный образ SDK для сборки
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-WORKDIR /app
+WORKDIR /src
 
-# Копируем csproj и восстанавливаем зависимости
-COPY *.csproj ./
+# Копируем файлы проекта и восстанавливаем зависимости
+COPY *.csproj .
 RUN dotnet restore
 
-# Копируем остальной код и собираем
-COPY . ./
-RUN dotnet publish -c Release -o out
+# Копируем все файлы и собираем приложение
+COPY . .
+RUN dotnet publish -c Release -o /app/publish
 
-# Используем runtime-образ для запуска
+# Используем образ рантайма для финального образа
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
-COPY --from=build /app/out .
 
-# Открываем порт
+# Копируем собранное приложение из промежуточного образа
+COPY --from=build /app/publish .
+
+# Открываем порт, который использует приложение
 EXPOSE 80
+EXPOSE 443
 
-# Устанавливаем переменные окружения (если нужно)
+# Устанавливаем переменную среды для ASP.NET Core
 ENV ASPNETCORE_URLS=http://+:80
 
-# Запуск
-ENTRYPOINT ["dotnet", "UserManagementApp.dll"]
+# Запускаем приложение
+ENTRYPOINT ["dotnet", "UserManagementApp.dll"] # замените YourProject на имя вашего проекта

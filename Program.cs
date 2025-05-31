@@ -8,13 +8,12 @@ using UserManagementApp.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddControllersWithViews();
 
+// Настройка PostgreSQL
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString)); // ← ВАЖНО: UseNpgsql
-
-
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -32,9 +31,6 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
 .AddDefaultUI()
 .AddDefaultTokenProviders();
 
-builder.Services.AddControllersWithViews();
-builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
-builder.Services.AddTransient<IEmailSender, MailKitEmailSender>();
 
 var app = builder.Build();
 
@@ -62,6 +58,23 @@ app.UseAuthorization();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=User}/{action=Index}/{id?}");
+
+
+// Автомиграции (применение миграций при запуске)
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var db = services.GetRequiredService<ApplicationDbContext>();
+        db.Database.Migrate(); // Применяем миграции
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating the database.");
+    }
+}
 
 app.MapRazorPages();
 
