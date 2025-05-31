@@ -43,18 +43,34 @@ builder.Services.AddTransient<IEmailSender, MailKitEmailSender>();
 var app = builder.Build();
 
 // Добавляем автоматическое применение миграций
+// Добавляем автоматическое применение миграций
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    try
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var maxRetries = 5;
+    var retryDelay = TimeSpan.FromSeconds(5);
+    
+    for (int i = 0; i < maxRetries; i++)
     {
-        var dbContext = services.GetRequiredService<ApplicationDbContext>();
-        dbContext.Database.Migrate(); // Применяет все pending миграции
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while applying migrations");
+        try
+        {
+            logger.LogInformation("Attempting to apply migrations (Attempt {0}/{1})", i + 1, maxRetries);
+            var dbContext = services.GetRequiredService<ApplicationDbContext>();
+            dbContext.Database.Migrate();
+            logger.LogInformation("Migrations applied successfully");
+            break;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Migration attempt {0} failed", i + 1);
+            if (i == maxRetries - 1)
+            {
+                logger.LogError("All migration attempts failed");
+                throw;
+            }
+            Thread.Sleep(retryDelay);
+        }
     }
 }
 

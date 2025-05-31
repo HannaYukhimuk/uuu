@@ -7,12 +7,16 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - sqlserver
+      sqlserver:
+        condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=UserManagementDb;User=sa;Password=Your_password123;TrustServerCertificate=True;
     restart: unless-stopped
     command: >
-      sh -c "dotnet ef database update && dotnet UserManagementApp.dll"
+      sh -c "while ! nc -z sqlserver 1433; do sleep 1; done &&
+      dotnet ef database update &&
+      dotnet UserManagementApp.dll"
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -20,11 +24,19 @@ services:
     environment:
       SA_PASSWORD: "Your_password123"
       ACCEPT_EULA: "Y"
+      MSSQL_LCID: 1033
+      MSSQL_COLLATION: SQL_Latin1_General_CP1_CI_AS
+      MSSQL_MEMORY_LIMIT_MB: 2048
     ports:
       - "1433:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -U sa -P Your_password123 -Q \"SELECT 1\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
 volumes:
   sqlserver_data:

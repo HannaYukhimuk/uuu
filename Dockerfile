@@ -14,6 +14,12 @@ RUN dotnet publish -c Release -o out
 # Stage 2: Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
+
+# Install netcat for network checks
+RUN apt-get update && \
+    apt-get install -y netcat && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/out .
 
 EXPOSE 80
