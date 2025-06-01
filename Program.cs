@@ -12,13 +12,16 @@ builder.Services.AddControllersWithViews();
 
 
 // Получаем строку подключения
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+var host = builder.Configuration["DB_HOST"];
+var port = builder.Configuration["DB_PORT"];
+var dbName = builder.Configuration["DB_NAME"];
+var dbUser = builder.Configuration["DB_USER"];
+var dbPassword = builder.Configuration["DB_PASSWORD"];
 
-// Регистрируем DbContext
+var connectionString = $"Host={host};Port={port};Database={dbName};Username={dbUser};Password={dbPassword}";
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
-
 // Остальной код...
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
